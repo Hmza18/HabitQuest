@@ -10,6 +10,12 @@ export default function HabitCard({ habit, onToggle, onDelete }) {
   const streak = calcStreak(habit.completedDates);
   const xp = xpForHabit(habit);
 
+  let streakTarget;
+  if (streak < 3) streakTarget = 3;
+  else if (streak < 7) streakTarget = 7;
+  else if (streak < 30) streakTarget = 30;
+  const daysRemaining = streakTarget ? streakTarget - streak : 0;
+
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const dateStr = daysBefore(today, 6 - i);
     const date = new Date(dateStr + 'T12:00:00');
@@ -58,6 +64,13 @@ export default function HabitCard({ habit, onToggle, onDelete }) {
             </span>
             <span className="xp-tag">+{xp} XP</span>
           </div>
+          {streakTarget && daysRemaining > 0 && (
+            <div className="streak-hint">
+              {daysRemaining === 1
+                ? `1 day until ${streakTarget}-day streak bonus`
+                : `${daysRemaining} days until ${streakTarget}-day streak bonus`}
+            </div>
+          )}
         </div>
 
         {confirming ? (

@@ -1,14 +1,17 @@
 import { useState, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { useHabitStore } from './hooks/useHabitStore';
+import { useProfile } from './hooks/useProfile';
 import { useTheme } from './hooks/useTheme';
 import HUD from './components/HUD';
 import HabitCard from './components/HabitCard';
 import AddHabitForm from './components/AddHabitForm';
 import LevelUpOverlay from './components/LevelUpOverlay';
+import OnboardingWizard from './components/OnboardingWizard';
 import ToastContainer from './components/ToastContainer';
 import LandingPage from './components/LandingPage';
 import QuickStartTemplates from './components/QuickStartTemplates';
+import QuestLog from './components/QuestLog';
 
 function triggerConfetti() {
   confetti({
@@ -24,7 +27,9 @@ function triggerConfetti() {
 
 export default function App() {
   const [view, setView] = useState('landing');
+  const [isQuestLogOpen, setIsQuestLogOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { profile, saveProfile } = useProfile();
 
   const {
     state,
@@ -41,8 +46,47 @@ export default function App() {
     toggleHabit(id, triggerConfetti);
   }, [toggleHabit]);
 
+  const handleEnterFromLanding = useCallback(() => {
+    if (profile) {
+      setView('app');
+    } else {
+      setView('onboarding');
+    }
+  }, [profile]);
+
+  const handleOnboardingComplete = useCallback((nextProfile) => {
+    saveProfile(nextProfile);
+    setView('app');
+  }, [saveProfile]);
+
+  const handleOnboardingSkip = useCallback(() => {
+    setView('app');
+  }, []);
+
   if (view === 'landing') {
-    return <LandingPage onEnter={() => setView('app')} theme={theme} onToggleTheme={toggleTheme} />;
+    return (
+      <LandingPage
+        onEnter={handleEnterFromLanding}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  }
+
+  if (view === 'onboarding') {
+    return (
+      <>
+        <LandingPage
+          onEnter={handleEnterFromLanding}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+        <OnboardingWizard
+          onComplete={handleOnboardingComplete}
+          onSkip={handleOnboardingSkip}
+        />
+      </>
+    );
   }
 
   return (
@@ -58,18 +102,36 @@ export default function App() {
         <button className="app-topbar-back" onClick={() => setView('landing')}>
           ← HabitQuest
         </button>
-        <button
-          className="theme-toggle"
-          onClick={toggleTheme}
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? '☀️' : '🌙'}
-        </button>
+        <div className="app-topbar-actions">
+          <button
+            className="quest-log-btn"
+            onClick={() => setIsQuestLogOpen(true)}
+            aria-label="Open Quest Log"
+            title="Quest Log"
+          >
+            <span className="quest-log-btn-icon">📜</span>
+            <span className="quest-log-btn-label">Quest Log</span>
+          </button>
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+        </div>
       </div>
 
+      <QuestLog
+        isOpen={isQuestLogOpen}
+        onClose={() => setIsQuestLogOpen(false)}
+        habits={state.habits}
+        player={state.player}
+      />
+
       <div className="app-wrapper">
-        <HUD player={state.player} habits={state.habits} />
+        <HUD player={state.player} habits={state.habits} profile={profile} />
 
         <main className="habits-section">
           {state.habits.length === 0 ? (

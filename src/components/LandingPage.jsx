@@ -203,7 +203,14 @@ export default function LandingPage({ onEnter, theme, onToggleTheme }) {
       <footer className="landing-footer">
         <span>⚔️ HabitQuest</span>
         <span className="footer-sep">·</span>
-        <span>Built with React + Vite</span>
+        <a
+          className="landing-footer-link"
+          href="https://www.instagram.com/hamzamahari/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Built by Hamza
+        </a>
       </footer>
 
     </div>

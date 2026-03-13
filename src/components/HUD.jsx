@@ -1,7 +1,7 @@
 import { getLevelInfo, todayStr } from '../utils/gameLogic';
 import { BADGE_DEFS } from '../utils/constants';
 
-export default function HUD({ player, habits }) {
+export default function HUD({ player, habits, profile }) {
   const info = getLevelInfo(player.xp);
   const today = todayStr();
   const total = habits.length;
@@ -23,10 +23,19 @@ export default function HUD({ player, habits }) {
       <div className="hud-top">
         <div className="hud-title">
           <span className="hud-sword">⚔️</span>
-          <span className="hud-name">HabitQuest</span>
+          <span className="hud-name">
+            {profile?.name ? `${profile.name}'s HabitQuest` : 'HabitQuest'}
+          </span>
         </div>
         <div className="hud-date">{dateLabel}</div>
       </div>
+
+      {profile?.name && (
+        <div className="hud-greeting">
+          Welcome back to the journey,{' '}
+          <span className="hud-greeting-name">{profile.name}</span>.
+        </div>
+      )}
 
       <div className="hud-player">
         <div className="hud-level-badge">

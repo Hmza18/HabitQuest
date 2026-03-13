@@ -1,9 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { STORAGE_KEY, DEFAULT_STATE, BADGE_DEFS, LEVELS } from '../utils/constants';
 import {
   todayStr, calcStreak, xpForHabit, getLevelIndex,
   checkAndAwardBadges, uid,
 } from '../utils/gameLogic';
+
+const UNDO_TOAST_MS = 5000;
 
 function loadState() {
   try {
@@ -27,15 +29,63 @@ export function useHabitStore() {
   const [state, setState] = useState(loadState);
   const [toasts, setToasts] = useState([]);
   const [levelUp, setLevelUp] = useState(null); // level name string or null
+  const lastToggledRef = useRef(null); // { habitId, justChecked } for undo
 
-  const addToast = useCallback((message, type = '') => {
+  const addToast = useCallback((message, type = '', options = {}) => {
     const id = uid();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+    const timeoutMs = options.timeoutMs ?? 3500;
+    const toast = { id, message, type, ...options };
+    setToasts(prev => [...prev, toast]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+      if (options.onExpire) options.onExpire();
+    }, timeoutMs);
   }, []);
 
   const dismissToast = useCallback((id) => {
     setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const clearLastToggled = useCallback(() => {
+    lastToggledRef.current = null;
+  }, []);
+
+  const undoLastToggle = useCallback(() => {
+    const last = lastToggledRef.current;
+    if (!last) return;
+    lastToggledRef.current = null;
+
+    setState(prev => {
+      const today = todayStr();
+      const habit = prev.habits.find(h => h.id === last.habitId);
+      if (!habit) return prev;
+
+      const hasToday = habit.completedDates.includes(today);
+      // Undo: if we had just checked (justChecked true), we need to uncheck now (remove today).
+      // If we had just unchecked (justChecked false), we need to check again (add today).
+      const shouldHaveToday = !last.justChecked;
+      if (hasToday === shouldHaveToday) return prev; // already in target state
+
+      let updatedHabit;
+      let xpDelta;
+      if (shouldHaveToday) {
+        updatedHabit = { ...habit, completedDates: [...habit.completedDates, today] };
+        xpDelta = xpForHabit(updatedHabit);
+      } else {
+        updatedHabit = { ...habit, completedDates: habit.completedDates.filter(d => d !== today) };
+        xpDelta = -xpForHabit(habit); // habit still has today
+      }
+
+      const newXp = Math.max(0, prev.player.xp + xpDelta);
+      const updatedHabits = prev.habits.map(h => h.id === last.habitId ? updatedHabit : h);
+      const next = {
+        ...prev,
+        player: { ...prev.player, xp: newXp },
+        habits: updatedHabits,
+      };
+      persist(next);
+      return next;
+    });
   }, []);
 
   const addHabit = useCallback((name, emoji) => {
@@ -117,6 +167,9 @@ export function useHabitStore() {
 
       persist(next);
 
+      // Store for undo (last action only)
+      lastToggledRef.current = { habitId: id, justChecked: !alreadyDone };
+
       // Side effects after state update
       if (!alreadyDone) {
         triggerConfetti && triggerConfetti();
@@ -133,7 +186,21 @@ export function useHabitStore() {
 
       return next;
     });
-  }, [addToast]);
+
+    // Show undo toast after state is committed
+    setTimeout(() => {
+      addToast(
+        alreadyDone ? 'Habit unchecked' : 'Marked complete',
+        'undo',
+        {
+          actionLabel: 'Undo',
+          onUndo: undoLastToggle,
+          timeoutMs: UNDO_TOAST_MS,
+          onExpire: clearLastToggled,
+        }
+      );
+    }, 0);
+  }, [addToast, undoLastToggle, clearLastToggled]);
 
   const dismissLevelUp = useCallback(() => setLevelUp(null), []);
 
